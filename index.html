@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Plant Scanner</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --green-dark: #0c1a0e;
+    --green-mid: #1e4024;
+    --green-accent: #4a9a5e;
+    --green-light: #7fcf92;
+    --green-pale: #edf7f0;
+    --amber: #e0a030;
+    --amber-pale: #fdf9ec;
+    --red: #e05040;
+    --red-pale: #feeee8;
+    --white: #ffffff;
+    --off-white: #f5f7f5;
+    --text-primary: #1a1a1a;
+    --text-secondary: #555;
+    --text-muted: #888;
+    --border: rgba(0,0,0,0.08);
+    --radius: 14px;
+    --radius-sm: 10px;
+  }
+  html, body { height: 100%; overflow: hidden; background: var(--green-dark); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-font-smoothing: antialiased; }
+
+  /* ── SCREENS ── */
+  .screen { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; display: none; flex-direction: column; }
+  .screen.active { display: flex; }
+
+  /* ── HOME ── */
+  #home { background: var(--green-dark); align-items: center; justify-content: center; padding: 2rem 1.5rem; }
+  .logo-ring { width: 80px; height: 80px; border-radius: 50%; background: rgba(100,200,120,0.1); border: 1.5px solid rgba(100,200,120,0.25); display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; }
+  .home-title { color: #e8f5ec; font-size: 28px; font-weight: 600; text-align: center; letter-spacing: -0.02em; }
+  .home-sub { color: rgba(255,255,255,0.4); font-size: 15px; text-align: center; margin-top: 8px; line-height: 1.5; max-width: 280px; margin-left: auto; margin-right: auto; }
+  .btn-primary { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 16px; background: var(--green-accent); border: none; border-radius: var(--radius); color: #fff; font-size: 16px; font-weight: 500; cursor: pointer; margin-top: 12px; -webkit-tap-highlight-color: transparent; }
+  .btn-secondary { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 16px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: var(--radius); color: rgba(255,255,255,0.8); font-size: 16px; font-weight: 400; cursor: pointer; margin-top: 10px; -webkit-tap-highlight-color: transparent; }
+  .home-footer { color: rgba(255,255,255,0.2); font-size: 12px; text-align: center; margin-top: 28px; }
+
+  /* ── CAMERA ── */
+  #camera { background: #000; }
+  #video { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; }
+  .cam-overlay { position: absolute; inset: 0; pointer-events: none; display: flex; align-items: center; justify-content: center; }
+  .cam-frame { position: relative; width: 240px; height: 240px; }
+  .cam-corner { position: absolute; width: 36px; height: 36px; border-color: rgba(127,207,146,0.9); border-style: solid; border-width: 0; }
+  .cam-corner.tl { top:0;left:0; border-top-width:2.5px; border-left-width:2.5px; border-radius:5px 0 0 0; }
+  .cam-corner.tr { top:0;right:0; border-top-width:2.5px; border-right-width:2.5px; border-radius:0 5px 0 0; }
+  .cam-corner.bl { bottom:0;left:0; border-bottom-width:2.5px; border-left-width:2.5px; border-radius:0 0 0 5px; }
+  .cam-corner.br { bottom:0;right:0; border-bottom-width:2.5px; border-right-width:2.5px; border-radius:0 0 5px 0; }
+  .cam-hint { position: absolute; bottom: 120px; left: 0; right: 0; text-align: center; color: rgba(255,255,255,0.6); font-size: 13px; pointer-events: none; }
+  .cam-bar { position: absolute; bottom: 0; left: 0; right: 0; padding: 24px 32px max(24px, env(safe-area-inset-bottom)); background: linear-gradient(transparent, rgba(0,0,0,0.85)); display: flex; align-items: center; justify-content: space-between; }
+  .cam-icon-btn { width: 48px; height: 48px; border-radius: 50%; background: rgba(255,255,255,0.15); border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .cam-shutter { width: 72px; height: 72px; border-radius: 50%; background: var(--green-accent); border: 3.5px solid #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; -webkit-tap-highlight-color: transparent; box-shadow: 0 0 0 6px rgba(74,154,94,0.25); }
+  #cam-top { position: absolute; top: 0; left: 0; right: 0; padding: max(16px, env(safe-area-inset-top)) 16px 12px; display: flex; align-items: center; justify-content: space-between; background: linear-gradient(rgba(0,0,0,0.5), transparent); }
+  .cam-title { color: rgba(255,255,255,0.7); font-size: 14px; letter-spacing: 0.05em; }
+
+  /* ── SCANNING ── */
+  #scanning { background: var(--green-dark); align-items: center; justify-content: center; gap: 20px; }
+  .scan-thumb { width: 160px; height: 160px; border-radius: 16px; overflow: hidden; position: relative; border: 2px solid rgba(127,207,146,0.2); }
+  .scan-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .scan-spinner-wrap { position: absolute; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; }
+  .spinner { width: 44px; height: 44px; border: 3px solid rgba(127,207,146,0.25); border-top-color: var(--green-light); border-radius: 50%; animation: spin 0.85s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .scan-label { color: var(--green-light); font-size: 16px; font-weight: 500; }
+  .scan-sub { color: rgba(255,255,255,0.3); font-size: 13px; }
+
+  /* ── RESULT ── */
+  #result { background: var(--off-white); }
+  .result-hero { background: var(--green-dark); position: relative; }
+  .result-hero-img { width: 100%; height: 220px; object-fit: cover; opacity: 0.55; display: block; }
+  .result-hero-grad { position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(12,26,14,0.15) 0%, rgba(12,26,14,0.95) 100%); }
+  .result-hero-info { position: absolute; bottom: 0; left: 0; right: 0; padding: 0 18px 22px; }
+  .result-family { color: rgba(127,207,146,0.85); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
+  .result-name { color: #fff; font-size: 24px; font-weight: 600; line-height: 1.2; }
+  .result-sci { color: rgba(255,255,255,0.5); font-size: 13px; font-style: italic; margin-top: 3px; }
+  .result-badge { background: rgba(100,200,120,0.18); border: 1px solid rgba(100,200,120,0.35); border-radius: 20px; padding: 4px 11px; color: var(--green-light); font-size: 12px; font-weight: 500; display: inline-block; margin-top: 7px; }
+  .back-btn { position: absolute; top: max(14px, env(safe-area-inset-top)); left: 14px; width: 36px; height: 36px; border-radius: 50%; background: rgba(0,0,0,0.4); border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10; -webkit-tap-highlight-color: transparent; }
+  .result-body { padding: 14px 14px 48px; display: flex; flex-direction: column; gap: 14px; }
+  .section-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 9px; padding-left: 2px; }
+  .card { background: var(--white); border-radius: var(--radius); border: 0.5px solid var(--border); padding: 14px 16px; }
+  .desc-text { font-size: 14px; color: var(--text-secondary); line-height: 1.65; }
+  .origin-text { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
+  .care-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+  .care-tile { border-radius: var(--radius-sm); padding: 12px 8px; text-align: center; }
+  .care-tile-icon { font-size: 22px; margin-bottom: 5px; }
+  .care-tile-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
+  .care-tile-val { font-size: 12px; font-weight: 600; color: var(--text-primary); line-height: 1.3; }
+  .env-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 9px; }
+  .env-tile { background: var(--white); border-radius: var(--radius-sm); border: 0.5px solid var(--border); padding: 12px 13px; display: flex; align-items: center; gap: 10px; }
+  .env-tile-icon { font-size: 20px; flex-shrink: 0; }
+  .env-tile-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .env-tile-val { font-size: 12px; font-weight: 600; color: var(--text-primary); margin-top: 2px; }
+  .tips-list { display: flex; flex-direction: column; gap: 9px; }
+  .tip-row { display: flex; gap: 10px; align-items: flex-start; }
+  .tip-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+  .tip-text { font-size: 13px; color: var(--text-secondary); line-height: 1.55; }
+  .health-banner { border-radius: var(--radius); padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
+  .health-circle { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px; font-weight: 700; color: #fff; }
+  .health-main { font-weight: 600; font-size: 14px; }
+  .health-score { font-size: 12px; margin-top: 2px; opacity: 0.75; }
+  .issue-card { border-radius: var(--radius); padding: 14px 16px; margin-bottom: 10px; }
+  .issue-header { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+  .issue-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .issue-name { font-weight: 600; font-size: 14px; flex: 1; }
+  .issue-severity { font-size: 10px; padding: 2px 9px; border-radius: 20px; text-transform: capitalize; color: #fff; font-weight: 500; }
+  .issue-desc { font-size: 13px; line-height: 1.55; margin-bottom: 10px; }
+  .issue-fix { border-radius: 8px; padding: 10px 12px; font-size: 12.5px; line-height: 1.55; }
+  .rescan-btn { background: var(--green-dark); border: none; border-radius: var(--radius); padding: 16px; color: var(--green-light); font-size: 15px; font-weight: 500; cursor: pointer; width: 100%; margin-top: 4px; -webkit-tap-highlight-color: transparent; }
+
+  /* ── ERROR ── */
+  #error { background: var(--green-dark); align-items: center; justify-content: center; text-align: center; padding: 2rem 1.5rem; gap: 16px; }
+  .error-icon { width: 64px; height: 64px; border-radius: 50%; background: rgba(220,80,60,0.12); border: 1.5px solid rgba(220,80,60,0.3); display: flex; align-items: center; justify-content: center; margin: 0 auto; }
+  .error-title { color: #e8f5ec; font-size: 20px; font-weight: 500; }
+  .error-msg { color: rgba(255,255,255,0.55); font-size: 11px; line-height: 1.6; width: 100%; max-width: 340px; font-family: monospace; white-space: pre-wrap; word-break: break-all; text-align: left; background: rgba(255,255,255,0.05); border-radius: 8px; padding: 12px; max-height: 300px; overflow-y: auto; }
+  .error-btn { background: var(--green-accent); border: none; border-radius: var(--radius-sm); padding: 14px 32px; color: #fff; font-size: 15px; font-weight: 500; cursor: pointer; margin-top: 8px; -webkit-tap-highlight-color: transparent; }
+
+  /* ── TOAST ── */
+  #toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: rgba(30,64,36,0.95); color: var(--green-light); font-size: 13px; padding: 10px 18px; border-radius: 20px; border: 1px solid rgba(127,207,146,0.3); white-space: nowrap; opacity: 0; transition: opacity 0.3s; z-index: 999; pointer-events: none; }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- HOME -->
+<div id="home" class="screen active">
+  <div style="max-width:400px;width:100%;text-align:center;">
+    <div class="logo-ring">
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+        <path d="M20 4C12 8,5 15,7 24C9 32,15 36,20 36C25 36,31 32,33 24C35 15,28 8,20 4Z" fill="rgba(100,200,120,0.25)" stroke="#7fcf92" stroke-width="1.5"/>
+        <path d="M20 4L20 36" stroke="#4a9960" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <path d="M20 15C16 14,9 17,7 24" stroke="#4a9960" stroke-width="1" fill="none"/>
+        <path d="M20 22C24 21,31 24,33 29" stroke="#4a9960" stroke-width="1" fill="none"/>
+      </svg>
+    </div>
+    <h1 class="home-title">Plant Scanner</h1>
+    <p class="home-sub">Identify any plant and get care advice and health diagnosis</p>
+    <div style="margin-top:2rem;">
+      <button class="btn-primary" onclick="openCamera()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        Use camera
+      </button>
+      <button class="btn-secondary" onclick="document.getElementById('fileInput').click()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        Upload a photo
+      </button>
+    </div>
+    <p class="home-footer">Powered by Claude AI · No data stored</p>
+  </div>
+  <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFile(event)">
+</div>
+
+<!-- CAMERA -->
+<div id="camera" class="screen">
+  <video id="video" autoplay playsinline muted></video>
+  <div class="cam-overlay">
+    <div class="cam-frame">
+      <div class="cam-corner tl"></div>
+      <div class="cam-corner tr"></div>
+      <div class="cam-corner bl"></div>
+      <div class="cam-corner br"></div>
+    </div>
+  </div>
+  <div class="cam-hint">Centre the plant in the frame</div>
+  <div id="cam-top">
+    <span class="cam-title">Plant Scanner</span>
+    <button class="cam-icon-btn" onclick="closeCamera(); showScreen('home')">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="cam-bar">
+    <button class="cam-icon-btn" onclick="document.getElementById('fileInput').click()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+    </button>
+    <button class="cam-shutter" id="shutterBtn" onclick="capture()">
+      <svg width="30" height="30" viewBox="0 0 40 40" fill="none">
+        <path d="M20 5C12 9,5 16,7 25C9 33,15 37,20 37C25 37,31 33,33 25C35 16,28 9,20 5Z" fill="rgba(255,255,255,0.9)"/>
+      </svg>
+    </button>
+    <div style="width:48px;"></div>
+  </div>
+</div>
+
+<!-- SCANNING -->
+<div id="scanning" class="screen">
+  <div class="scan-thumb" id="scanThumb">
+    <img id="scanPreview" src="" alt="Plant image">
+    <div class="scan-spinner-wrap"><div class="spinner"></div></div>
+  </div>
+  <p class="scan-label" id="scanLabel">Analysing image…</p>
+  <p class="scan-sub">This takes a few seconds</p>
+</div>
+
+<!-- RESULT -->
+<div id="result" class="screen">
+  <div class="result-hero">
+    <img id="resultImg" src="" alt="Plant" class="result-hero-img">
+    <div class="result-hero-grad"></div>
+    <div class="result-hero-info">
+      <p class="result-family" id="rFamily"></p>
+      <h1 class="result-name" id="rName"></h1>
+      <p class="result-sci" id="rSci"></p>
+      <span class="result-badge" id="rConfidence"></span>
+    </div>
+    <button class="back-btn" onclick="showScreen('home')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+  </div>
+  <div class="result-body" id="resultBody"></div>
+</div>
+
+<!-- ERROR -->
+<div id="error" class="screen">
+  <div class="error-icon">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#e05040" stroke-width="2" stroke-linecap="round"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/><circle cx="12" cy="12" r="10"/></svg>
+  </div>
+  <p class="error-title">Couldn't analyse this image</p>
+  <p class="error-msg" id="errorMsg"></p>
+  <button class="error-btn" onclick="showScreen('home')">Try again</button>
+</div>
+
+<div id="toast"></div>
+
+<canvas id="canvas" style="display:none"></canvas>
+
+<script>
+const SYSTEM = `You are an expert botanist and plant care specialist. When given a plant image, respond ONLY with a valid JSON object — no markdown, no code fences, no explanation.
+
+JSON structure:
+{
+  "identified": true,
+  "common_name": "string",
+  "scientific_name": "string",
+  "confidence": 92,
+  "family": "string",
+  "origin": "string",
+  "description": "2-3 sentence description",
+  "care": {
+    "water": { "frequency": "e.g. Every 7-10 days", "tip": "one specific tip" },
+    "light": { "level": "e.g. Bright indirect", "tip": "one specific tip" },
+    "fertilizer": { "frequency": "e.g. Monthly in spring/summer", "tip": "one specific tip" },
+    "humidity": "e.g. 40-60%",
+    "temperature": "e.g. 65-85°F / 18-29°C"
+  },
+  "health": {
+    "overall": "healthy",
+    "score": 95,
+    "issues": []
+  }
+}
+
+If issues detected, set overall to "warning" or "stressed" and populate issues:
+{ "name": "string", "severity": "mild|moderate|severe", "description": "string", "fix": "specific actionable fix" }
+
+If no plant in image, return: { "identified": false, "error": "reason" }`;
+
+let stream = null;
+let currentPreview = null;
+let scanInterval = null;
+
+const scanSteps = ['Analysing image…','Identifying species…','Reviewing care needs…','Checking plant health…'];
+let stepIdx = 0;
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (id !== 'camera') closeCamera();
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+async function openCamera() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    toast('Camera not supported — upload a photo instead');
+    return;
+  }
+  showScreen('camera');
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+    });
+    document.getElementById('video').srcObject = stream;
+  } catch(e) {
+    showScreen('home');
+    document.getElementById('errorMsg').textContent = 'Camera access was denied. Please allow camera access in your browser settings, or upload a photo instead.';
+    showScreen('error');
+  }
+}
+
+function closeCamera() {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+}
+
+function capture() {
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  canvas.width = video.videoWidth || 640;
+  canvas.height = video.videoHeight || 480;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+  const b64 = dataUrl.split(',')[1];
+  currentPreview = dataUrl;
+  closeCamera();
+  analyseImage(b64);
+}
+
+function handleFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+
+  // Determine media type — iOS HEIC files often come through as empty or heic
+  let mediaType = file.type || 'image/jpeg';
+  if (!['image/jpeg','image/png','image/gif','image/webp'].includes(mediaType)) {
+    mediaType = 'image/jpeg'; // treat HEIC and unknown as jpeg for API
+  }
+
+  const reader = new FileReader();
+  reader.onerror = () => {
+    document.getElementById('errorMsg').textContent = 'FileReader error: ' + (reader.error ? reader.error.message : 'unknown') + '\nFile type: ' + file.type + '\nFile size: ' + file.size;
+    showScreen('error');
+  };
+  reader.onload = ev => {
+    const dataUrl = ev.target.result;
+    const commaIdx = dataUrl.indexOf(',');
+    if (commaIdx === -1) {
+      document.getElementById('errorMsg').textContent = 'Bad dataURL — no comma.\nType: ' + file.type + '\nSize: ' + file.size;
+      showScreen('error');
+      return;
+    }
+    // Always resize via canvas to keep payload under ~800KB base64
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.getElementById('canvas');
+      const MAX = 1024;
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else       { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const resized = canvas.toDataURL('image/jpeg', 0.82);
+      currentPreview = resized;
+      const b64out = resized.substring(resized.indexOf(',') + 1);
+      closeCamera();
+      analyseImage(b64out, 'image/jpeg');
+    };
+    img.onerror = () => {
+      // Canvas decode failed — send raw and hope for the best
+      currentPreview = dataUrl;
+      closeCamera();
+      analyseImage(dataUrl.substring(commaIdx + 1), mediaType);
+    };
+    img.src = dataUrl;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function analyseImage(b64, mediaType) {
+  mediaType = mediaType || 'image/jpeg';
+  showScreen('scanning');
+  document.getElementById('scanPreview').src = currentPreview;
+  stepIdx = 0;
+  document.getElementById('scanLabel').textContent = scanSteps[0];
+  scanInterval = setInterval(() => {
+    stepIdx = Math.min(stepIdx + 1, scanSteps.length - 1);
+    document.getElementById('scanLabel').textContent = scanSteps[stepIdx];
+  }, 950);
+
+  let debugInfo = '';
+
+  try {
+    debugInfo += 'Step 1: Sending request...\n';
+    debugInfo += 'Image b64 length: ' + b64.length + '\n';
+
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1200,
+        system: SYSTEM,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } },
+            { type: 'text', text: 'Identify this plant, give care instructions, and diagnose any health issues. Return only the JSON object, nothing else.' }
+          ]
+        }]
+      })
+    });
+
+    clearInterval(scanInterval);
+    debugInfo += 'Step 2: Got HTTP ' + resp.status + '\n';
+
+    const bodyText = await resp.text();
+    debugInfo += 'Step 3: Body preview: ' + bodyText.slice(0, 300) + '\n';
+
+    if (!resp.ok) {
+      throw new Error('HTTP ' + resp.status + ': ' + bodyText.slice(0, 200));
+    }
+
+    let data;
+    try { data = JSON.parse(bodyText); }
+    catch(e) { throw new Error('Response not valid JSON: ' + bodyText.slice(0, 200)); }
+
+    const raw = (data.content || []).find(c => c.type === 'text')?.text || '';
+    debugInfo += 'Step 4: Raw text: ' + raw.slice(0, 200) + '\n';
+
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No JSON object found in:\n' + raw.slice(0, 300));
+
+    let plant;
+    try { plant = JSON.parse(jsonMatch[0]); }
+    catch(e) { throw new Error('JSON parse failed: ' + e.message + '\nRaw: ' + jsonMatch[0].slice(0, 200)); }
+
+    debugInfo += 'Step 5: Parsed OK, identified=' + plant.identified + '\n';
+
+    if (!plant.identified) {
+      document.getElementById('errorMsg').textContent = plant.error || 'No plant detected. Try a clearer, closer photo.';
+      showScreen('error');
+      return;
+    }
+
+    renderResult(plant);
+    showScreen('result');
+  } catch(err) {
+    clearInterval(scanInterval);
+    const fullMsg = err.message + '\n\nDEBUG:\n' + debugInfo;
+    document.getElementById('errorMsg').textContent = fullMsg;
+    showScreen('error');
+  }
+}
+
+function renderResult(p) {
+  document.getElementById('resultImg').src = currentPreview;
+  document.getElementById('rFamily').textContent = p.family || '';
+  document.getElementById('rName').textContent = p.common_name || 'Unknown plant';
+  document.getElementById('rSci').textContent = p.scientific_name || '';
+  document.getElementById('rConfidence').textContent = (p.confidence || '?') + '% match';
+
+  const issues = p.health?.issues || [];
+  const overall = p.health?.overall || 'healthy';
+  const score = p.health?.score || 100;
+
+  const hStyle = overall === 'healthy'
+    ? { bg:'#e8f5ec', border:'#8bc4a0', text:'#1a5c30', circleBg:'#4a9a5e', icon:'✓', label:'Looking healthy' }
+    : overall === 'warning'
+    ? { bg:'#fff8e8', border:'#e0b840', text:'#7a5000', circleBg:'#e0a030', icon:'⚠', label: issues.length + ' issue' + (issues.length!==1?'s':'') + ' detected' }
+    : { bg:'#fef0e8', border:'#e08050', text:'#7a2800', circleBg:'#e06030', icon:'!', label: issues.length + ' issue' + (issues.length!==1?'s':'') + ' detected' };
+
+  const c = p.care || {};
+
+  let issuesHTML = '';
+  issues.forEach(issue => {
+    const sev = issue.severity || 'mild';
+    const sc = sev === 'severe'
+      ? { bg:'#feeee8', border:'#e06040', label:'#7a1800', pill:'#e06040' }
+      : sev === 'moderate'
+      ? { bg:'#fef2e8', border:'#e09050', label:'#7a3800', pill:'#e09050' }
+      : { bg:'#fff8e8', border:'#e0c060', label:'#7a5800', pill:'#c8a030' };
+    issuesHTML += `
+    <div class="issue-card" style="background:${sc.bg};border:1px solid ${sc.border}">
+      <div class="issue-header">
+        <div class="issue-dot" style="background:${sc.border}"></div>
+        <span class="issue-name" style="color:${sc.label}">${esc(issue.name)}</span>
+        <span class="issue-severity" style="background:${sc.pill}">${esc(sev)}</span>
+      </div>
+      <p class="issue-desc" style="color:${sc.label};opacity:0.9">${esc(issue.description)}</p>
+      <div class="issue-fix" style="background:rgba(255,255,255,0.55);color:${sc.label}">
+        <strong>Fix:</strong> ${esc(issue.fix)}
+      </div>
+    </div>`;
+  });
+
+  document.getElementById('resultBody').innerHTML = `
+    <!-- Description -->
+    <div class="card">
+      <p class="desc-text">${esc(p.description)}</p>
+      ${p.origin ? `<p class="origin-text">Native to ${esc(p.origin)}</p>` : ''}
+    </div>
+
+    <!-- Care -->
+    <div>
+      <p class="section-label">Care guide</p>
+      <div class="care-grid">
+        <div class="care-tile" style="background:#edf6fc">
+          <div class="care-tile-icon">💧</div>
+          <div class="care-tile-label">Water</div>
+          <div class="care-tile-val">${esc(c.water?.frequency || '—')}</div>
+        </div>
+        <div class="care-tile" style="background:#fdf9ec">
+          <div class="care-tile-icon">☀️</div>
+          <div class="care-tile-label">Light</div>
+          <div class="care-tile-val">${esc(c.light?.level || '—')}</div>
+        </div>
+        <div class="care-tile" style="background:#edf7f0">
+          <div class="care-tile-icon">🌱</div>
+          <div class="care-tile-label">Fertilize</div>
+          <div class="care-tile-val">${esc(c.fertilizer?.frequency || '—')}</div>
+        </div>
+      </div>
+      <div class="env-grid">
+        <div class="env-tile">
+          <span class="env-tile-icon">🌡️</span>
+          <div><div class="env-tile-label">Temperature</div><div class="env-tile-val">${esc(c.temperature || '—')}</div></div>
+        </div>
+        <div class="env-tile">
+          <span class="env-tile-icon">💦</span>
+          <div><div class="env-tile-label">Humidity</div><div class="env-tile-val">${esc(c.humidity || '—')}</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tips -->
+    <div class="card">
+      <p class="section-label">Care tips</p>
+      <div class="tips-list">
+        ${[['💧', c.water?.tip], ['☀️', c.light?.tip], ['🌱', c.fertilizer?.tip]]
+          .filter(([,tip]) => tip)
+          .map(([icon, tip]) => `<div class="tip-row"><span class="tip-icon">${icon}</span><p class="tip-text">${esc(tip)}</p></div>`)
+          .join('')}
+      </div>
+    </div>
+
+    <!-- Health -->
+    <div>
+      <p class="section-label">Plant health</p>
+      <div class="health-banner" style="background:${hStyle.bg};border:1px solid ${hStyle.border};margin-bottom:${issues.length?'10px':'0'}">
+        <div class="health-circle" style="background:${hStyle.circleBg}">${hStyle.icon}</div>
+        <div>
+          <p class="health-main" style="color:${hStyle.text}">${hStyle.label}</p>
+          <p class="health-score" style="color:${hStyle.text}">Health score: ${score}/100</p>
+        </div>
+      </div>
+      ${issuesHTML}
+    </div>
+
+    <button class="rescan-btn" onclick="showScreen('home')">Scan another plant</button>
+  `;
+
+  document.getElementById('result').scrollTop = 0;
+}
+
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
